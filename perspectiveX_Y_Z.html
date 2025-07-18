@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centered Perspective Camera with Fixed Axis Positions</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: #2a2a2a;
+            overflow: hidden;
+        }
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        #canvas {
+            display: block;
+            background: #1a1a1a;
+        }
+        .xyz-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 140px;
+            height: 140px;
+            z-index: 1000;
+            background: rgba(60, 60, 60, 0.9);
+            border-radius: 50%;
+            border: 2px solid #444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+        }
+        .xyz-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 1px solid #666;
+            position: relative;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .axis-line {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .axis-line.horizontal {
+            width: 120px;
+            height: 1px;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+        }
+        .axis-line.vertical {
+            width: 1px;
+            height: 120px;
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+        }
+        .axis-button {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            transform: translate(-50%, -50%);
+            color: white;
+        }
+        .axis-button:hover {
+            transform: translate(-50%, -50%) scale(1.1);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+        .axis-button.active {
+            transform: translate(-50%, -50%) scale(1.2);
+            box-shadow: 0 0 15px currentColor;
+        }
+        .axis-button.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .axis-x { background: #ff4444; top: 60px; left: 114px; }
+        .axis-minus-x { background: #cc3333; top: 60px; left: 6px; }
+        .axis-y { background: #44ff44; top: 6px; left: 60px; }
+        .axis-minus-y { background: #33cc33; top: 114px; left: 60px; }
+        .axis-z { background: #4444ff; top: 18px; left: 102px; }
+        .axis-minus-z { background: #3333cc; top: 102px; left: 18px; }
+        .center-dot {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #888;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 1px solid #aaa;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas"></canvas>
+        <div class="xyz-indicator">
+            <div class="xyz-circle">
+                <div class="axis-line horizontal"></div>
+                <div class="axis-line vertical"></div>
+                <div class="center-dot"></div>
+                <div class="axis-button axis-x" data-axis="x" data-original-top="60px" data-original-left="114px">X</div>
+                <div class="axis-button axis-minus-x" data-axis="-x" data-original-top="60px" data-original-left="6px">-X</div>
+                <div class="axis-button axis-y" data-axis="y" data-original-top="6px" data-original-left="60px">Y</div>
+                <div class="axis-button axis-minus-y" data-axis="-y" data-original-top="114px" data-original-left="60px">-Y</div>
+                <div class="axis-button axis-z" data-axis="z" data-original-top="18px" data-original-left="102px">Z</div>
+                <div class="axis-button axis-minus-z" data-axis="-z" data-original-top="102px" data-original-left="18px">-Z</div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script>
+        let scene, camera, renderer;
+        let isMouseDown = false;
+        let mouseX = 0, mouseY = 0;
+        let rotationX = 0, rotationY = 0;
+        let targetRotationX = 0, targetRotationY = 0;
+        let cameraRadius = 5; // Reduced for closer view
+        let currentActiveAxis = null;
+        let centeredButton = null;
+        let isDraggingAxis = false;
+        let draggedButton = null;
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a1a);
+
+            camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 1000); // FOV set to 90
+            camera.position.set(2.5, 2.5, 2.5); // Adjusted to match cameraRadius
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 5);
+            scene.add(directionalLight);
+
+            setupEventListeners();
+            animate();
+        }
+
+        function setupEventListeners() {
+            const canvas = document.getElementById('canvas');
+            canvas.addEventListener('mousedown', onMouseDown);
+            canvas.addEventListener('mousemove', onMouseMove);
+            canvas.addEventListener('mouseup', onMouseUp);
+            canvas.addEventListener('wheel', onMouseWheel);
+
+            document.querySelectorAll('.axis-button').forEach(button => {
+                button.addEventListener('mousedown', onAxisMouseDown);
+                button.addEventListener('click', onAxisClick);
+            });
+
+            document.addEventListener('mousemove', onAxisMouseMove);
+            document.addEventListener('mouseup', onAxisMouseUp);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        function onAxisMouseDown(event) {
+            event.stopPropagation();
+            isDraggingAxis = true;
+            draggedButton = event.target;
+            draggedButton.classList.add('active');
+        }
+
+        function onAxisMouseMove(event) {
+            if (!isDraggingAxis || !draggedButton) return;
+
+            const xyzCircle = document.querySelector('.xyz-circle');
+            const rect = xyzCircle.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            let mouseX = event.clientX - centerX;
+            let mouseY = event.clientY - centerY;
+
+            // Restrict movement within the circular boundary (radius = 60px)
+            const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
+            const radius = 60;
+            if (distance > radius) {
+                const angle = Math.atan2(mouseY, mouseX);
+                mouseX = radius * Math.cos(angle);
+                mouseY = radius * Math.sin(angle);
+            }
+
+            draggedButton.style.left = `${mouseX + rect.width / 2}px`;
+            draggedButton.style.top = `${mouseY + rect.height / 2}px`;
+        }
+
+        function onAxisMouseUp() {
+            if (isDraggingAxis && draggedButton) {
+                isDraggingAxis = false;
+                draggedButton.classList.remove('active');
+                const rect = document.querySelector('.xyz-circle').getBoundingClientRect();
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const currentX = parseFloat(draggedButton.style.left) - centerX;
+                const currentY = parseFloat(draggedButton.style.top) - centerY;
+                const distance = Math.sqrt(currentX * currentX + currentY * currentY);
+                if (distance < 20) {
+                    setActiveAxis(draggedButton.dataset.axis, draggedButton);
+                    setCameraToAxis(draggedButton.dataset.axis);
+                } else {
+                    draggedButton.style.top = draggedButton.dataset.originalTop;
+                    draggedButton.style.left = draggedButton.dataset.originalLeft;
+                    if (centeredButton === draggedButton) {
+                        centeredButton = null;
+                        currentActiveAxis = null;
+                        document.querySelectorAll('.axis-button').forEach(button => {
+                            button.classList.remove('hidden', 'active');
+                        });
+                    }
+                }
+                draggedButton = null;
+            }
+        }
+
+        function onAxisClick(event) {
+            if (!isDraggingAxis) {
+                const axis = event.target.dataset.axis;
+                setActiveAxis(axis, event.target);
+                setCameraToAxis(axis);
+            }
+        }
+
+        function setActiveAxis(axis, clickedButton) {
+            if (centeredButton) {
+                centeredButton.style.top = centeredButton.dataset.originalTop;
+                centeredButton.style.left = centeredButton.dataset.originalLeft;
+                centeredButton.classList.remove('hidden', 'active');
+            }
+
+            clickedButton.style.top = '50%';
+            clickedButton.style.left = '50%';
+            clickedButton.classList.add('active');
+            centeredButton = clickedButton;
+
+            document.querySelectorAll('.axis-button').forEach(button => {
+                button.classList.remove('hidden');
+                if (
+                    (axis === 'x' && button.dataset.axis === '-x') ||
+                    (axis === '-x' && button.dataset.axis === 'x') ||
+                    (axis === 'y' && button.dataset.axis === '-y') ||
+                    (axis === '-y' && button.dataset.axis === 'y') ||
+                    (axis === 'z' && button.dataset.axis === '-z') ||
+                    (axis === '-z' && button.dataset.axis === 'z')
+                ) {
+                    button.classList.add('hidden');
+                } else if (button === clickedButton) {
+                    button.classList.remove('hidden');
+                }
+            });
+
+            currentActiveAxis = axis;
+        }
+
+        function setCameraToAxis(axis) {
+            let targetPosition;
+            let targetRotX = 0, targetRotY = 0;
+            switch (axis) {
+                case 'x':
+                    targetPosition = new THREE.Vector3(cameraRadius, 0, 0);
+                    targetRotY = 0;
+                    targetRotX = 0;
+                    break;
+                case '-x':
+                    targetPosition = new THREE.Vector3(-cameraRadius, 0, 0);
+                    targetRotY = Math.PI;
+                    targetRotX = 0;
+                    break;
+                case 'y':
+                    targetPosition = new THREE.Vector3(0, cameraRadius, 0);
+                    targetRotX = -Math.PI / 2;
+                    targetRotY = 0;
+                    break;
+                case '-y':
+                    targetPosition = new THREE.Vector3(0, -cameraRadius, 0);
+                    targetRotX = Math.PI / 2;
+                    targetRotY = 0;
+                    break;
+                case 'z':
+                    targetPosition = new THREE.Vector3(0, 0, cameraRadius);
+                    targetRotX = 0;
+                    targetRotY = 0;
+                    break;
+                case '-z':
+                    targetPosition = new THREE.Vector3(0, 0, -cameraRadius);
+                    targetRotX = 0;
+                    targetRotY = Math.PI;
+                    break;
+            }
+
+            if (targetPosition) {
+                const startPosition = camera.position.clone();
+                const startRotX = rotationX;
+                const startRotY = rotationY;
+                const startTime = Date.now();
+                const duration = 500;
+
+                function animate() {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+                    camera.position.lerpVectors(startPosition, targetPosition, easeProgress);
+                    rotationX = startRotX + (targetRotX - startRotX) * easeProgress;
+                    rotationY = startRotY + (targetRotY - startRotY) * easeProgress;
+                    camera.lookAt(0, 0, 0);
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        camera.position.copy(targetPosition);
+                        rotationX = targetRotX;
+                        rotationY = targetRotY;
+                        targetRotationX = rotationX;
+                        targetRotationY = rotationY;
+                    }
+                }
+                animate();
+            }
+        }
+
+        function onMouseDown(event) {
+            isMouseDown = true;
+            mouseX = event.clientX;
+            mouseY = event.clientY;
+            canvas.style.cursor = 'grabbing';
+        }
+
+        function onMouseMove(event) {
+            if (!isMouseDown) return;
+
+            const deltaX = event.clientX - mouseX;
+            const deltaY = event.clientY - mouseY;
+
+            targetRotationY += deltaX * 0.01;
+            targetRotationX += deltaY * 0.01;
+            targetRotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, targetRotationX));
+
+            mouseX = event.clientX;
+            mouseY = event.clientY;
+            updateCameraPosition();
+        }
+
+        function onMouseUp() {
+            if (isMouseDown) {
+                isMouseDown = false;
+                canvas.style.cursor = 'grab';
+            }
+        }
+
+        function onMouseWheel(event) {
+            event.preventDefault();
+            const zoom = event.deltaY > 0 ? 1.1 : 0.9;
+            cameraRadius *= zoom;
+            cameraRadius = Math.max(3, Math.min(30, cameraRadius));
+            updateCameraPosition();
+        }
+
+        function updateCameraPosition() {
+            const x = cameraRadius * Math.sin(rotationY) * Math.cos(rotationX);
+            const y = cameraRadius * Math.sin(rotationX);
+            const z = cameraRadius * Math.cos(rotationY) * Math.cos(rotationX);
+            camera.position.set(x, y, z);
+            camera.lookAt(0, 0, 0);
+        }
+
+        function updateCamera() {
+            rotationX += (targetRotationX - rotationX) * 0.1;
+            rotationY += (targetRotationY - rotationY) * 0.1;
+            updateCameraPosition();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updateCamera();
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
