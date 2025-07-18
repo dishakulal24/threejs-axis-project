@@ -280,72 +280,76 @@
             currentActiveAxis = axis;
         }
 
-        function setCameraToAxis(axis) {
-            let targetPosition;
-            let targetRotX = 0, targetRotY = 0;
-            switch (axis) {
-                case 'x':
-                    targetPosition = new THREE.Vector3(cameraRadius, 0, 0);
-                    targetRotY = 0;
-                    targetRotX = 0;
-                    break;
-                case '-x':
-                    targetPosition = new THREE.Vector3(-cameraRadius, 0, 0);
-                    targetRotY = Math.PI;
-                    targetRotX = 0;
-                    break;
-                case 'y':
-                    targetPosition = new THREE.Vector3(0, cameraRadius, 0);
-                    targetRotX = -Math.PI / 2;
-                    targetRotY = 0;
-                    break;
-                case '-y':
-                    targetPosition = new THREE.Vector3(0, -cameraRadius, 0);
-                    targetRotX = Math.PI / 2;
-                    targetRotY = 0;
-                    break;
-                case 'z':
-                    targetPosition = new THREE.Vector3(0, 0, cameraRadius);
-                    targetRotX = 0;
-                    targetRotY = 0;
-                    break;
-                case '-z':
-                    targetPosition = new THREE.Vector3(0, 0, -cameraRadius);
-                    targetRotX = 0;
-                    targetRotY = Math.PI;
-                    break;
-            }
+       function setCameraToAxis(axis) {
+    let targetPosition;
+    let targetRotX = 0, targetRotY = 0;
 
-            if (targetPosition) {
-                const startPosition = camera.position.clone();
-                const startRotX = rotationX;
-                const startRotY = rotationY;
-                const startTime = Date.now();
-                const duration = 500;
+    switch (axis) {
+        case 'x':
+            targetPosition = new THREE.Vector3(cameraRadius, 0, 0);
+            targetRotY = 0;
+            targetRotX = 0;
+            break;
+        case '-x':
+            targetPosition = new THREE.Vector3(-cameraRadius, 0, 0);
+            targetRotY = Math.PI;
+            targetRotX = 0;
+            break;
+        case 'y':
+            targetPosition = new THREE.Vector3(0, cameraRadius, 0);
+            targetRotX = -Math.PI / 2;
+            targetRotY = 0;
+            break;
+        case '-y':
+            targetPosition = new THREE.Vector3(0, -cameraRadius, 0);
+            targetRotX = Math.PI / 2;
+            targetRotY = 0;
+            break;
+        case 'z':
+            targetPosition = new THREE.Vector3(0, 0, cameraRadius);
+            targetRotX = 0;
+            targetRotY = 0;
+            break;
+        case '-z':
+            targetPosition = new THREE.Vector3(0, 0, -cameraRadius);
+            targetRotX = 0;
+            targetRotY = Math.PI;
+            break;
+    }
 
-                function animate() {
-                    const elapsed = Date.now() - startTime;
-                    const progress = Math.min(elapsed / duration, 1);
-                    const easeProgress = 1 - Math.pow(1 - progress, 3);
+    if (targetPosition) {
+        // 👇 Send axis info to parent iframe
+        window.parent.postMessage({ type: 'setCameraAxis', axis }, '*');
 
-                    camera.position.lerpVectors(startPosition, targetPosition, easeProgress);
-                    rotationX = startRotX + (targetRotX - startRotX) * easeProgress;
-                    rotationY = startRotY + (targetRotY - startRotY) * easeProgress;
-                    camera.lookAt(0, 0, 0);
+        const startPosition = camera.position.clone();
+        const startRotX = rotationX;
+        const startRotY = rotationY;
+        const startTime = Date.now();
+        const duration = 500;
 
-                    if (progress < 1) {
-                        requestAnimationFrame(animate);
-                    } else {
-                        camera.position.copy(targetPosition);
-                        rotationX = targetRotX;
-                        rotationY = targetRotY;
-                        targetRotationX = rotationX;
-                        targetRotationY = rotationY;
-                    }
-                }
-                animate();
+        function animate() {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+            camera.position.lerpVectors(startPosition, targetPosition, easeProgress);
+            rotationX = startRotX + (targetRotX - startRotX) * easeProgress;
+            rotationY = startRotY + (targetRotY - startRotY) * easeProgress;
+            camera.lookAt(0, 0, 0);
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                camera.position.copy(targetPosition);
+                rotationX = targetRotX;
+                rotationY = targetRotY;
+                targetRotationX = rotationX;
+                targetRotationY = rotationY;
             }
         }
+        animate();
+    }
+}
 
         function onMouseDown(event) {
             isMouseDown = true;
