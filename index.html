@@ -298,35 +298,36 @@
                     upVector.set(0, 1, 0);
                     break;
                 case 'y': // Back
+                    targetPosition = new THREE.Vector3(0, 0, cameraRadius);
+                    targetRotX = 0;
+                    targetRotY = 0;
+                    upVector.set(0, 1, 0);
+                    break;
+                case '-y': // Front
+                    targetPosition = new THREE.Vector3(0, 0, -cameraRadius);
+                    targetRotX = 0;
+                    targetRotY = Math.PI;
+                    upVector.set(0, 1, 0);
+                    break;
+                case 'z': // Top
                     targetPosition = new THREE.Vector3(0, cameraRadius, 0);
                     targetRotX = -Math.PI / 2;
                     targetRotY = 0;
-                    upVector.set(0, 0, -1); // Negative Z-axis up for back view
+                    upVector.set(0, 0, 1); // Positive Z-axis up for top view
                     break;
-                case '-y': // Front
+                case '-z': // Bottom
                     targetPosition = new THREE.Vector3(0, -cameraRadius, 0);
                     targetRotX = Math.PI / 2;
                     targetRotY = 0;
-                    upVector.set(0, 0, 1); // Positive Z-axis up for front view
-                    break;
-                case 'z': // Up
-                    targetPosition = new THREE.Vector3(0, 0, cameraRadius);
-                    targetRotX = -Math.PI / 2;
-                    targetRotY = 0;
-                    upVector.set(0, 1, 0);
-                    break;
-                case '-z': // Down
-                    targetPosition = new THREE.Vector3(0, 0, -cameraRadius);
-                    targetRotX = Math.PI / 2;
-                    targetRotY = 0;
-                    upVector.set(0, 1, 0);
+                    upVector.set(0, 0, -1); // Negative Z-axis up for bottom view
                     break;
             }
 
             if (targetPosition) {
-                
+
                 // 👇 Send axis info to parent iframe
-                 window.parent.postMessage({ type: 'setCameraAxis', axis }, '*');  
+                 window.parent.postMessage({ type: 'setCameraAxis', axis }, '*'); 
+                
                 const startPosition = camera.position.clone();
                 const startRotX = rotationX;
                 const startRotY = rotationY;
